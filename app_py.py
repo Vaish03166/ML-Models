@@ -30,48 +30,53 @@ except Exception as e:
     st.stop()
 
 
-# --- Dual Preprocessing Function (THE FIX) ---
+# --- Dual Preprocessing Function (THE FIX for 6 vs 8 features) ---
 
 def preprocess_input(age, sex, bmi, children, smoker, region, scaler):
     """
-    Applies dual preprocessing: 9 features for Regression, 6 features for Classification.
+    Applies dual preprocessing: 8 features for Regression (OHE, drop_first=True), 
+    6 features for Classification (Label Encoding).
     """
     
-    # 1. Create Base DataFrame and Apply Binary Encoding (Same for both models)
+    # 1. Create Base DataFrame
     data = {
         'age': [age], 'sex': [sex], 'bmi': [bmi], 'children': [children], 
         'smoker': [smoker], 'region': [region]
     }
     input_df = pd.DataFrame(data)
     
-    # Binary Encoding: 'female': 1, 'male': 0 and 'yes': 1, 'no': 0
-    input_df['sex'] = input_df['sex'].map({'male': 0, 'female': 1})
-    input_df['smoker'] = input_df['smoker'].map({'yes': 1, 'no': 0})
     
-    
-    # --- 2. Prepare Features for REGRESSION (9 features: OHE for region) ---
-    reg_df = input_df.copy()
-    reg_df = pd.get_dummies(reg_df, columns=['region'])
-    
-    # Ensure 9 columns are present in the correct order (CRUCIAL for model integrity)
-    reg_required_cols = ['age', 'sex', 'bmi', 'children', 'smoker', 
-                         'region_northeast', 'region_northwest', 'region_southeast', 'region_southwest']
-    for col in reg_required_cols:
-        if col not in reg_df.columns:
-            reg_df[col] = 0
-    reg_features = reg_df[reg_required_cols].copy() 
-
-
-    # --- 3. Prepare Features for CLASSIFICATION (6 features: Label Encoding for region) ---
+    # --- 2. Prepare Features for CLASSIFICATION (6 features: Label Encoding) ---
     cls_df = input_df.copy()
     
-    # Label Encoding for 'region' (Assumed mapping: alphabetical)
+    # Label Encoding based on LabelEncoder alphabetical output (Snippet 6 confirmation)
+    cls_df['sex'] = cls_df['sex'].map({'female': 0, 'male': 1})
+    cls_df['smoker'] = cls_df['smoker'].map({'no': 0, 'yes': 1})
     region_map = {'northeast': 0, 'northwest': 1, 'southeast': 2, 'southwest': 3}
     cls_df['region'] = cls_df['region'].map(region_map)
     
-    # Ensure 6 columns are present in the correct order
+    # Define and order the 6 required columns
     cls_required_cols = ['age', 'sex', 'bmi', 'children', 'smoker', 'region']
     cls_features = cls_df[cls_required_cols].copy()
+    
+    
+    # --- 3. Prepare Features for REGRESSION (8 features: OHE, drop_first=True) ---
+    reg_df = input_df.copy()
+    
+    # Apply OHE with drop_first=True (Snippet 4 confirmation)
+    reg_df = pd.get_dummies(reg_df, columns=['sex', 'smoker', 'region'], drop_first=True)
+    
+    # Define the 8 required columns based on the dropped-first categories
+    reg_required_cols = ['age', 'bmi', 'children', 'sex_male', 'smoker_yes', 
+                         'region_northwest', 'region_southeast', 'region_southwest']
+    
+    # Add missing OHE columns (3 regions not selected and the OHE features) and set them to 0
+    for col in reg_required_cols:
+        if col not in reg_df.columns:
+            reg_df[col] = 0
+            
+    # Reorder columns to match the training data feature vector
+    reg_features = reg_df[reg_required_cols].copy() 
 
     
     # --- 4. Apply StandardScaler (Scaling numerical features on BOTH feature sets) ---
@@ -123,7 +128,7 @@ if st.button('Predict Medical Charges and Risk'):
     st.balloons()
     
     
-    # --- REGRESSION PREDICTION (9 features) ---
+    # --- REGRESSION PREDICTION (8 features) ---
     
     # Make the prediction (log-transformed)
     log_prediction = reg_model.predict(reg_features)
@@ -153,7 +158,7 @@ if st.button('Predict Medical Charges and Risk'):
         st.metric(label="Estimated Medical Charge (Regression)", 
                   value=f"${predicted_charge:,.2f}")
         st.markdown(f"""
-        This value is predicted by the **Stacking Regressor** model (9 features).
+        This value is predicted by the **Stacking Regressor** model (8 features).
         """)
         
     with col_cls:
