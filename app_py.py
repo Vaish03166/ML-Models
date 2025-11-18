@@ -26,11 +26,12 @@ except Exception as e:
     st.stop()
 
 
-# --- Single Preprocessing Function (The Unified Fix: 6 Features) ---
+# --- Single Preprocessing Function (The Unified 6-Feature Setup) ---
 
 def preprocess_input(age, sex, bmi, children, smoker, region, scaler):
     """
-    Applies the 6-feature Label Encoding and Scaling used for both models.
+    Applies the 6-feature Label Encoding and Scaling used for both models, 
+    based on the confirmed 6-feature structure.
     """
     
     # 1. Create Base DataFrame
@@ -40,8 +41,8 @@ def preprocess_input(age, sex, bmi, children, smoker, region, scaler):
     }
     input_df = pd.DataFrame(data)
     
-    # 2. Apply Label Encoding for ALL categorical features (6 total features)
-    # Mapping based on LabelEncoder alphabetical output from notebook analysis:
+    # 2. Apply Label Encoding for ALL categorical features
+    # Mapping: female/no/northeast are 0
     input_df['sex'] = input_df['sex'].map({'female': 0, 'male': 1})
     input_df['smoker'] = input_df['smoker'].map({'no': 0, 'yes': 1})
     region_map = {'northeast': 0, 'northwest': 1, 'southeast': 2, 'southwest': 3}
@@ -86,7 +87,6 @@ if st.button('Predict Medical Charges and Risk'):
     
     # 1. Preprocess the inputs once to get the 6 features
     try:
-        # The single feature set is used for both models
         processed_features = preprocess_input(age, sex, bmi, children, smoker, region, scaler)
     except Exception as e:
         st.error(f"Error during data preprocessing: {e}")
@@ -102,8 +102,9 @@ if st.button('Predict Medical Charges and Risk'):
     # Make the prediction (log-transformed)
     log_prediction = reg_model.predict(processed_features)
     
-    # Inverse transform (exponentiate)
-    predicted_charge = np.exp(log_prediction)[0]
+    # FIX: Ensure log_prediction is a standard array/float before using np.exp() and indexing.
+    # .flatten() converts the prediction result into a 1D array of floats.
+    predicted_charge = np.exp(log_prediction.flatten())[0]
     
     
     # --- CLASSIFICATION PREDICTION (6 features) ---
@@ -111,7 +112,7 @@ if st.button('Predict Medical Charges and Risk'):
     # Make the classification prediction
     predicted_class_encoded = cls_model.predict(processed_features)[0]
     
-    # Map the encoded class back to a meaningful category (assuming 0=Low, 1=High)
+    # Map the encoded class back to a meaningful category (0=Low, 1=High)
     if predicted_class_encoded == 1:
         cost_category = "HIGH COST"
         category_color = "red"
