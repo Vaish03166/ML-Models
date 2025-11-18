@@ -6,7 +6,7 @@ import joblib
 # --- Configuration and Loading ---
 
 try:
-    # Load the Regression Model (r_model.pkl)
+    # Load the Regression Model (r_model.pkl - Stacking)
     reg_model = joblib.load('r_model.pkl')
     # Load the Classification Model (cl_model.pkl)
     cls_model = joblib.load('cl_model.pkl')
@@ -26,68 +26,38 @@ except Exception as e:
     st.stop()
 
 
-# --- Dual Preprocessing Function ---
+# --- Single Preprocessing Function (The Unified Fix: 6 Features) ---
 
 def preprocess_input(age, sex, bmi, children, smoker, region, scaler):
     """
-    Applies dual preprocessing: 9 features for Regression (OHE for region), 
-    6 features for Classification (Label Encoding).
+    Applies the 6-feature Label Encoding and Scaling used for both models.
     """
     
-    # 1. Create Base DataFrame and Apply common Binary Encoding
+    # 1. Create Base DataFrame
     data = {
         'age': [age], 'sex': [sex], 'bmi': [bmi], 'children': [children], 
         'smoker': [smoker], 'region': [region]
     }
     input_df = pd.DataFrame(data)
     
-    # Binary Encoding: 'female': 1, 'male': 0 and 'yes': 1, 'no': 0 (Used by both)
-    input_df['sex'] = input_df['sex'].map({'female': 0, 'male': 1}) # Check: 'female' was 1 earlier, now checking 0/1 logic.
+    # 2. Apply Label Encoding for ALL categorical features (6 total features)
+    # Mapping based on LabelEncoder alphabetical output from notebook analysis:
+    input_df['sex'] = input_df['sex'].map({'female': 0, 'male': 1})
     input_df['smoker'] = input_df['smoker'].map({'no': 0, 'yes': 1})
+    region_map = {'northeast': 0, 'northwest': 1, 'southeast': 2, 'southwest': 3}
+    input_df['region'] = input_df['region'].map(region_map)
     
+    # 3. Define the 6 required columns in the correct order
+    required_cols = ['age', 'sex', 'bmi', 'children', 'smoker', 'region'] 
+    final_features = input_df[required_cols].copy()
     
-    # --- 2. Prepare Features for CLASSIFICATION (6 features: Label Encoding) ---
-    cls_df = input_df.copy()
-    
-    # Label Encoding for 'region'
-    # NOTE: The classification model was likely trained after the regression, 
-    # and the region mapping must be exact. Assuming alphabetical mapping:
-    region_map_cls = {'northeast': 0, 'northwest': 1, 'southeast': 2, 'southwest': 3}
-    cls_df['region'] = cls_df['region'].map(region_map_cls)
-    
-    cls_required_cols = ['age', 'sex', 'bmi', 'children', 'smoker', 'region'] # Total 6 features
-    cls_features = cls_df[cls_required_cols].copy()
-    
-    
-    # --- 3. Prepare Features for REGRESSION (9 features: OHE, No Drop) ---
-    reg_df = input_df.copy()
-    
-    # Isolate 'region' for OHE (sex and smoker are already binary encoded)
-    reg_df = pd.get_dummies(reg_df, columns=['region'])
-    
-    # Define and order the 9 required columns (CRUCIAL for model integrity)
-    reg_required_cols = ['age', 'sex', 'bmi', 'children', 'smoker', 
-                         'region_northeast', 'region_northwest', 'region_southeast', 'region_southwest']
-    
-    # Add missing OHE columns and set them to 0
-    for col in reg_required_cols:
-        if col not in reg_df.columns:
-            reg_df[col] = 0
-            
-    # Reorder columns to match the training data feature vector
-    reg_features = reg_df[reg_required_cols].copy() # Total 9 features
-
-    
-    # --- 4. Apply StandardScaler (Scaling numerical features on BOTH feature sets) ---
+    # 4. Apply StandardScaler to numerical features
     numerical_cols = ['age', 'bmi', 'children']
     
-    # Scale Regression Features (9 features)
-    reg_features.loc[:, numerical_cols] = scaler.transform(reg_features[numerical_cols])
+    # Scale Numerical Features
+    final_features.loc[:, numerical_cols] = scaler.transform(final_features[numerical_cols])
 
-    # Scale Classification Features (6 features)
-    cls_features.loc[:, numerical_cols] = scaler.transform(cls_features[numerical_cols])
-
-    return reg_features, cls_features
+    return final_features
 
 
 # --- Streamlit UI (Input Collection) ---
@@ -114,9 +84,10 @@ with col3:
 
 if st.button('Predict Medical Charges and Risk'):
     
-    # 1. Preprocess the inputs to create both feature vectors
+    # 1. Preprocess the inputs once to get the 6 features
     try:
-        reg_features, cls_features = preprocess_input(age, sex, bmi, children, smoker, region, scaler)
+        # The single feature set is used for both models
+        processed_features = preprocess_input(age, sex, bmi, children, smoker, region, scaler)
     except Exception as e:
         st.error(f"Error during data preprocessing: {e}")
         st.stop()
@@ -126,10 +97,10 @@ if st.button('Predict Medical Charges and Risk'):
     st.balloons()
     
     
-    # --- REGRESSION PREDICTION (9 features) ---
+    # --- REGRESSION PREDICTION (6 features) ---
     
     # Make the prediction (log-transformed)
-    log_prediction = reg_model.predict(reg_features)
+    log_prediction = reg_model.predict(processed_features)
     
     # Inverse transform (exponentiate)
     predicted_charge = np.exp(log_prediction)[0]
@@ -138,9 +109,9 @@ if st.button('Predict Medical Charges and Risk'):
     # --- CLASSIFICATION PREDICTION (6 features) ---
     
     # Make the classification prediction
-    predicted_class_encoded = cls_model.predict(cls_features)[0]
+    predicted_class_encoded = cls_model.predict(processed_features)[0]
     
-    # Map the encoded class back to a meaningful category (assuming 0=Low, 1=High based on median split)
+    # Map the encoded class back to a meaningful category (assuming 0=Low, 1=High)
     if predicted_class_encoded == 1:
         cost_category = "HIGH COST"
         category_color = "red"
@@ -156,7 +127,7 @@ if st.button('Predict Medical Charges and Risk'):
         st.metric(label="Estimated Medical Charge (Regression)", 
                   value=f"${predicted_charge:,.2f}")
         st.markdown(f"""
-        This value is predicted by the **Stacking Regressor** model (9 features).
+        This value is predicted by the **Stacking Regressor** model (6 features).
         """)
         
     with col_cls:
