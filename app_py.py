@@ -1,30 +1,37 @@
 import streamlit as st
 import joblib
 import numpy as np
+import pandas as pd
 
-# Load models
-model1 = joblib.load("r_model.pkl")   # Regression model
-model2 = joblib.load("cl_model.pkl")  # Classification model
+# Load both ML pipelines
+reg_model = joblib.load("r_model.pkl")
+cl_model = joblib.load("cl_model.pkl")
 
-st.title("ML Model Deployment Demo")
+st.title("Medical Charges Prediction & Classification App")
 
-st.subheader("Enter Input Values")
+# Input fields
+age = st.number_input("Age", 0)
+sex = st.selectbox("Sex", ["male", "female"])
+bmi = st.number_input("BMI", 0.0)
+children = st.number_input("Children", 0)
+smoker = st.selectbox("Smoker", ["yes", "no"])
+region = st.selectbox("Region", ["southeast", "southwest", "northeast", "northwest"])
 
-# User inputs
-x1 = st.number_input("age")
-x2 = st.number_input("sex")
-x3 = st.number_input("bmi")
-x4 = st.number_input("children")
-x5 = st.number_input("smoker")
-x6 = st.number_input("region")
+# Convert to DataFrame (required for pipeline)
+input_df = pd.DataFrame({
+    "age": [age],
+    "sex": [sex],
+    "bmi": [bmi],
+    "children": [children],
+    "smoker": [smoker],
+    "region": [region]
+})
 
-# Predict button
-if st.button("Predict Regression Output"):
-    inputs = np.array([[x1, x2, x3, x4, x5, x6]])
-    pred = model1.predict(inputs)[0]
-    st.success(f"Regression Model Prediction: {pred}")
+# Buttons
+if st.button("Predict Regression (Charges)"):
+    pred = reg_model.predict(input_df)[0]
+    st.success(f"Predicted Medical Charges: {pred:.2f}")
 
-if st.button("Predict Classification Output"):
-    inputs = np.array([[x1, x2, x3, x4, x5, x6]])
-    pred = model2.predict(inputs)[0]
-    st.info(f"Classification Model Prediction: {pred}")
+if st.button("Predict Classification (Refund / Class)"):
+    pred_class = cl_model.predict(input_df)[0]
+    st.success(f"Predicted Class: {pred_class}")
