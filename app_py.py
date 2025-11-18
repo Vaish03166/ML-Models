@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 # Load both ML pipelines
-reg_model = joblib.load("r_model.pkl")
-cl_model = joblib.load("cl_model.pkl")
+reg_model = joblib.load("r_model(1).pkl")
+cl_model = joblib.load("cl_model(1).pkl")
 
 st.title("Medical Charges Prediction & Classification App")
 
