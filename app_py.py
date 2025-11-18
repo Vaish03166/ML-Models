@@ -26,12 +26,11 @@ except Exception as e:
     st.stop()
 
 
-# --- Single Preprocessing Function (The Unified 6-Feature Setup) ---
+# --- Single Preprocessing Function (6 Features) ---
 
 def preprocess_input(age, sex, bmi, children, smoker, region, scaler):
     """
-    Applies the 6-feature Label Encoding and Scaling used for both models, 
-    based on the confirmed 6-feature structure.
+    Applies the 6-feature Label Encoding and Scaling used for both models.
     """
     
     # 1. Create Base DataFrame
@@ -42,7 +41,7 @@ def preprocess_input(age, sex, bmi, children, smoker, region, scaler):
     input_df = pd.DataFrame(data)
     
     # 2. Apply Label Encoding for ALL categorical features
-    # Mapping: female/no/northeast are 0
+    # Mapping based on LabelEncoder alphabetical output:
     input_df['sex'] = input_df['sex'].map({'female': 0, 'male': 1})
     input_df['smoker'] = input_df['smoker'].map({'no': 0, 'yes': 1})
     region_map = {'northeast': 0, 'northwest': 1, 'southeast': 2, 'southwest': 3}
@@ -85,7 +84,7 @@ with col3:
 
 if st.button('Predict Medical Charges and Risk'):
     
-    # 1. Preprocess the inputs once to get the 6 features
+    # 1. Preprocess the inputs to get the 6 features
     try:
         processed_features = preprocess_input(age, sex, bmi, children, smoker, region, scaler)
     except Exception as e:
@@ -99,12 +98,21 @@ if st.button('Predict Medical Charges and Risk'):
     
     # --- REGRESSION PREDICTION (6 features) ---
     
-    # Make the prediction (log-transformed)
     log_prediction = reg_model.predict(processed_features)
     
-    # FIX: Ensure log_prediction is a standard array/float before using np.exp() and indexing.
-    # .flatten() converts the prediction result into a 1D array of floats.
-    predicted_charge = np.exp(log_prediction.flatten())[0]
+    # FIX: Handle the possibility that the model output is a string/non-numeric due to internal error
+    try:
+        # Flatten the output array and cast the first element to float
+        log_prediction_value = float(log_prediction.flatten()[0])
+    except (TypeError, ValueError):
+        st.error(f"""
+        **Critical Error:** The Regression Model (`r_model.pkl`) returned a value that is not a number. 
+        This means the model failed internally. Please re-check the integrity of your `r_model.pkl` file.
+        """)
+        st.stop()
+
+    # Inverse transform (exponentiate) the guaranteed float value
+    predicted_charge = np.exp(log_prediction_value)
     
     
     # --- CLASSIFICATION PREDICTION (6 features) ---
